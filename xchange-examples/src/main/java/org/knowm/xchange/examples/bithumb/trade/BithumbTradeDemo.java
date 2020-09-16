@@ -68,10 +68,7 @@ public class BithumbTradeDemo {
 
     Thread.sleep(3000); // wait for order to propagate
 
-    tradeService
-        .getOpenOrders(openOrders)
-        .getOpenOrders()
-        .stream()
+    tradeService.getOpenOrders(openOrders).getOpenOrders().stream()
         .map(Order::getId)
         .map(
             orderId ->
@@ -108,7 +105,7 @@ public class BithumbTradeDemo {
       log.debug("", e);
     }
 
-    log.debug("{}", tradeServiceRaw.bithumbTransactions(CURRENCY_PAIR));
+    log.debug("{}", tradeServiceRaw.getBithumbUserTransactions(CURRENCY_PAIR));
 
     final LimitOrder limitOrderBuy =
         new LimitOrder.Builder(Order.OrderType.BID, CURRENCY_PAIR)
@@ -128,9 +125,7 @@ public class BithumbTradeDemo {
 
     Thread.sleep(3000); // wait for order to propagate
 
-    tradeServiceRaw
-        .getBithumbOrders(CURRENCY_PAIR)
-        .stream()
+    tradeServiceRaw.getBithumbOrders(CURRENCY_PAIR).getData().stream()
         .map(BithumbOrder::getOrderId)
         .forEach(
             orderId -> {

@@ -63,7 +63,9 @@ public interface BitstampAuthenticatedV2 {
       @FormParam("nonce") SynchronizedValueFactory<Long> nonce,
       @FormParam("limit") Long numberOfTransactions,
       @FormParam("offset") Long offset,
-      @FormParam("sort") String sort)
+      @FormParam("sort") String sort,
+      @FormParam("since_timestamp") Long sinceTimestamp,
+      @FormParam("since_id") Long sinceId)
       throws BitstampException, IOException;
 
   @POST
@@ -75,7 +77,9 @@ public interface BitstampAuthenticatedV2 {
       @PathParam("pair") BitstampV2.Pair pair,
       @FormParam("limit") Long numberOfTransactions,
       @FormParam("offset") Long offset,
-      @FormParam("sort") String sort)
+      @FormParam("sort") String sort,
+      @FormParam("since_timestamp") Long sinceTimestamp,
+      @FormParam("since_id") Long sinceId)
       throws BitstampException, IOException;
 
   @POST
@@ -160,7 +164,8 @@ public interface BitstampAuthenticatedV2 {
       @FormParam("bank_postal_code") String bankPostalCode,
       @FormParam("bank_city") String bankCity,
       @FormParam("bank_country") String bankCountryAlpha2,
-      @FormParam("currency") BankCurrency currency)
+      @FormParam("currency") BankCurrency currency,
+      @FormParam("comment") String comment)
       throws BitstampException, IOException;
 
   enum Side {

@@ -188,14 +188,26 @@ public class KrakenTradeServiceRaw extends KrakenBaseService {
     KrakenOrderBuilder orderBuilder =
         KrakenStandardOrder.getMarketOrderBuilder(
                 marketOrder.getCurrencyPair(), type, marketOrder.getOriginalAmount())
+            .withUserRefId(marketOrder.getUserReference())
             .withOrderFlags(marketOrder.getOrderFlags())
             .withLeverage(marketOrder.getLeverage());
 
     return placeKrakenOrder(orderBuilder.buildOrder());
   }
 
-  public KrakenOrderResponse placeKrakenLimitOrder(LimitOrder limitOrder) throws IOException {
+  public KrakenOrderResponse placeKrakenSettlePositionOrder(MarketOrder marketOrder)
+      throws IOException {
 
+    KrakenType type = KrakenType.fromOrderType(marketOrder.getType());
+    KrakenOrderBuilder orderBuilder =
+        KrakenStandardOrder.getSettlePositionOrderBuilder(
+                marketOrder.getCurrencyPair(), type, marketOrder.getOriginalAmount())
+            .withUserRefId(marketOrder.getUserReference());
+
+    return placeKrakenOrder(orderBuilder.buildOrder());
+  }
+
+  public KrakenOrderResponse placeKrakenLimitOrder(LimitOrder limitOrder) throws IOException {
     KrakenType type = KrakenType.fromOrderType(limitOrder.getType());
     KrakenOrderBuilder krakenOrderBuilder =
         KrakenStandardOrder.getLimitOrderBuilder(
@@ -203,6 +215,7 @@ public class KrakenTradeServiceRaw extends KrakenBaseService {
                 type,
                 limitOrder.getLimitPrice().toPlainString(),
                 limitOrder.getOriginalAmount())
+            .withUserRefId(limitOrder.getUserReference())
             .withOrderFlags(limitOrder.getOrderFlags())
             .withLeverage(limitOrder.getLeverage());
 

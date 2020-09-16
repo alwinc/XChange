@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.bitstamp.BitstampAdapters;
 import org.knowm.xchange.bitstamp.BitstampAuthenticatedV2;
@@ -23,15 +24,10 @@ import org.knowm.xchange.dto.trade.OpenOrders;
 import org.knowm.xchange.dto.trade.UserTrades;
 import org.knowm.xchange.exceptions.ExchangeException;
 import org.knowm.xchange.service.trade.TradeService;
-import org.knowm.xchange.service.trade.params.CancelOrderByIdParams;
-import org.knowm.xchange.service.trade.params.CancelOrderParams;
-import org.knowm.xchange.service.trade.params.TradeHistoryParamCurrencyPair;
-import org.knowm.xchange.service.trade.params.TradeHistoryParamOffset;
-import org.knowm.xchange.service.trade.params.TradeHistoryParamPaging;
-import org.knowm.xchange.service.trade.params.TradeHistoryParams;
-import org.knowm.xchange.service.trade.params.TradeHistoryParamsSorted;
+import org.knowm.xchange.service.trade.params.*;
 import org.knowm.xchange.service.trade.params.orders.DefaultOpenOrdersParamCurrencyPair;
 import org.knowm.xchange.service.trade.params.orders.OpenOrdersParams;
+import org.knowm.xchange.utils.DateUtils;
 
 /** @author Matija Mazi */
 public class BitstampTradeService extends BitstampTradeServiceRaw implements TradeService {
@@ -62,7 +58,11 @@ public class BitstampTradeService extends BitstampTradeServiceRaw implements Tra
                 pair,
                 id,
                 bitstampOrder.getDatetime(),
-                price));
+                price,
+                null, // avgPrice
+                null, // cumAmount
+                null, // fee
+                Order.OrderStatus.NEW));
       }
     }
     return new OpenOrders(limitOrders);
@@ -106,11 +106,13 @@ public class BitstampTradeService extends BitstampTradeServiceRaw implements Tra
 
   @Override
   public boolean cancelOrder(CancelOrderParams orderParams) throws IOException {
+    if (orderParams instanceof CancelAllOrders) {
+      return cancelAllBitstampOrders();
+    }
     if (orderParams instanceof CancelOrderByIdParams) {
       return cancelOrder(((CancelOrderByIdParams) orderParams).getOrderId());
-    } else {
-      return false;
     }
+    return false;
   }
 
   /** Required parameter types: {@link TradeHistoryParamPaging#getPageLength()} */
@@ -120,6 +122,8 @@ public class BitstampTradeService extends BitstampTradeServiceRaw implements Tra
     CurrencyPair currencyPair = null;
     Long offset = null;
     TradeHistoryParamsSorted.Order sort = null;
+    Long sinceTimestamp = null;
+    Long sinceId = null;
     if (params instanceof TradeHistoryParamPaging) {
       limit = Long.valueOf(((TradeHistoryParamPaging) params).getPageLength());
     }
@@ -132,9 +136,24 @@ public class BitstampTradeService extends BitstampTradeServiceRaw implements Tra
     if (params instanceof TradeHistoryParamsSorted) {
       sort = ((TradeHistoryParamsSorted) params).getOrder();
     }
+    if (params instanceof TradeHistoryParamsTimeSpan) {
+      sinceTimestamp =
+          DateUtils.toUnixTimeNullSafe(((TradeHistoryParamsTimeSpan) params).getStartTime());
+    }
+    if (params instanceof TradeHistoryParamsIdSpan) {
+      sinceId =
+          Optional.ofNullable(((TradeHistoryParamsIdSpan) params).getStartId())
+              .map(Long::parseLong)
+              .orElse(null);
+    }
     BitstampUserTransaction[] txs =
         getBitstampUserTransactions(
-            limit, currencyPair, offset, sort == null ? null : sort.toString());
+            limit,
+            currencyPair,
+            offset,
+            sort == null ? null : sort.toString(),
+            sinceTimestamp,
+            sinceId);
     return BitstampAdapters.adaptTradeHistory(txs);
   }
 

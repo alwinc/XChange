@@ -1,17 +1,13 @@
 package org.knowm.xchange.btcmarkets;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.btcmarkets.service.BTCMarketsTestSupport;
-import org.knowm.xchange.currency.CurrencyPair;
-import org.knowm.xchange.utils.nonce.CurrentTimeNonceFactory;
 import org.powermock.reflect.Whitebox;
-import si.mazi.rescu.SynchronizedValueFactory;
 
 public class BTCMarketsExchangeTest extends BTCMarketsTestSupport {
 
@@ -45,9 +41,7 @@ public class BTCMarketsExchangeTest extends BTCMarketsTestSupport {
   public void shouldApplyDefaultSpecificationWithKeys() {
     // given
     exchangeSpecification = exchange.getDefaultExchangeSpecification();
-    exchangeSpecification
-        .getExchangeSpecificParameters()
-        .put(BTCMarketsExchange.CURRENCY_PAIR, CurrencyPair.BTC_AUD);
+    exchangeSpecification.getExchangeSpecificParameters();
     exchangeSpecification.setApiKey(SPECIFICATION_API_KEY);
     exchangeSpecification.setSecretKey(SPECIFICATION_SECRET_KEY);
 
@@ -71,9 +65,7 @@ public class BTCMarketsExchangeTest extends BTCMarketsTestSupport {
   @Test
   public void shouldApplySpecificationWithKeys() {
     // given
-    exchangeSpecification
-        .getExchangeSpecificParameters()
-        .put(BTCMarketsExchange.CURRENCY_PAIR, CurrencyPair.BTC_AUD);
+    exchangeSpecification.getExchangeSpecificParameters();
     exchangeSpecification.setApiKey(SPECIFICATION_API_KEY);
     exchangeSpecification.setSecretKey(SPECIFICATION_SECRET_KEY);
 
@@ -128,16 +120,6 @@ public class BTCMarketsExchangeTest extends BTCMarketsTestSupport {
     assertThat(exchange.getAccountService()).isNull();
   }
 
-  @Test(expected = NullPointerException.class)
-  public void shouldFailWhenApplyNullSpecification() {
-    // when
-    exchange.applySpecification(null);
-
-    // then
-    fail(
-        "BTCMarketsExchange should throw NullPointerException when tries to apply null specification");
-  }
-
   @Test
   public void shouldCreateDefaultExchangeSpecification() {
     // when
@@ -152,15 +134,5 @@ public class BTCMarketsExchangeTest extends BTCMarketsTestSupport {
     assertThat(specification.getPort()).isEqualTo(80);
     assertThat(specification.getApiKey()).isNull();
     assertThat(specification.getSecretKey()).isNull();
-  }
-
-  @Test
-  public void shouldCreateNonceFactory() {
-    // when
-    SynchronizedValueFactory factory = exchange.getNonceFactory();
-
-    // then
-    assertThat(factory).isNotNull();
-    assertThat(factory instanceof CurrentTimeNonceFactory).isTrue();
   }
 }

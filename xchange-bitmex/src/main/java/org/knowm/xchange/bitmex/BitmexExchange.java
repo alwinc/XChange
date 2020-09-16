@@ -1,23 +1,33 @@
 package org.knowm.xchange.bitmex;
 
-import com.google.common.collect.BiMap;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import org.knowm.xchange.BaseExchange;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.bitmex.dto.account.BitmexTicker;
+import org.knowm.xchange.bitmex.dto.account.BitmexTickerList;
 import org.knowm.xchange.bitmex.service.BitmexAccountService;
 import org.knowm.xchange.bitmex.service.BitmexMarketDataService;
 import org.knowm.xchange.bitmex.service.BitmexMarketDataServiceRaw;
 import org.knowm.xchange.bitmex.service.BitmexTradeService;
+import org.knowm.xchange.currency.Currency;
+import org.knowm.xchange.currency.CurrencyPair;
+import org.knowm.xchange.dto.meta.CurrencyMetaData;
+import org.knowm.xchange.dto.meta.CurrencyPairMetaData;
+import org.knowm.xchange.exceptions.ExchangeException;
 import org.knowm.xchange.utils.nonce.ExpirationTimeFactory;
 import si.mazi.rescu.SynchronizedValueFactory;
 
 public class BitmexExchange extends BaseExchange implements Exchange {
 
-  private SynchronizedValueFactory<Long> nonceFactory = new ExpirationTimeFactory(30);
-
+  private final SynchronizedValueFactory<Long> nonceFactory = new ExpirationTimeFactory(30);
   protected RateLimitUpdateListener rateLimitUpdateListener;
 
   /** Adjust host parameters depending on exchange specific parameters */
@@ -25,7 +35,7 @@ public class BitmexExchange extends BaseExchange implements Exchange {
 
     if (exchangeSpecification.getExchangeSpecificParameters() != null) {
       if (exchangeSpecification.getExchangeSpecificParametersItem("Use_Sandbox").equals(true)) {
-        exchangeSpecification.setSslUri("https://testnet.bitmex.com/");
+        exchangeSpecification.setSslUri("https://testnet.bitmex.com");
         exchangeSpecification.setHost("testnet.bitmex.com");
       }
     }
@@ -54,7 +64,7 @@ public class BitmexExchange extends BaseExchange implements Exchange {
 
     ExchangeSpecification exchangeSpecification =
         new ExchangeSpecification(this.getClass().getCanonicalName());
-    exchangeSpecification.setSslUri("https://www.bitmex.com/");
+    exchangeSpecification.setSslUri("https://www.bitmex.com");
     exchangeSpecification.setHost("bitmex.com");
     exchangeSpecification.setPort(80);
     exchangeSpecification.setExchangeName("Bitmex");
@@ -70,12 +80,7 @@ public class BitmexExchange extends BaseExchange implements Exchange {
 
   @Override
   public void remoteInit() throws IOException {
-
-    List<BitmexTicker> tickers =
-        ((BitmexMarketDataServiceRaw) marketDataService).getActiveTickers();
-    BiMap<BitmexPrompt, String> contracts =
-        ((BitmexMarketDataServiceRaw) marketDataService).getActivePrompts(tickers);
-    exchangeMetaData = BitmexAdapters.adaptToExchangeMetaData(exchangeMetaData, tickers, contracts);
+    updateExchangeMetaData();
   }
 
   public RateLimitUpdateListener getRateLimitUpdateListener() {
@@ -84,5 +89,106 @@ public class BitmexExchange extends BaseExchange implements Exchange {
 
   public void setRateLimitUpdateListener(RateLimitUpdateListener rateLimitUpdateListener) {
     this.rateLimitUpdateListener = rateLimitUpdateListener;
+  }
+
+  public void updateExchangeMetaData() {
+
+    List<BitmexTicker> tickers =
+        ((BitmexMarketDataServiceRaw) marketDataService).getActiveTickers();
+    List<CurrencyPair> activeCurrencyPairs = new ArrayList<>();
+    Set<Currency> activeCurrencies = new HashSet<>();
+
+    tickers.forEach(
+        ticker -> collectCurrenciesAndPairs(ticker, activeCurrencyPairs, activeCurrencies));
+
+    Map<CurrencyPair, CurrencyPairMetaData> pairsMap = exchangeMetaData.getCurrencyPairs();
+    Map<Currency, CurrencyMetaData> currenciesMap = exchangeMetaData.getCurrencies();
+
+    // Remove pairs that are no-longer in use
+    pairsMap.keySet().retainAll(activeCurrencyPairs);
+
+    // Remove currencies that are no-longer in use
+    currenciesMap.keySet().retainAll(activeCurrencies);
+
+    // Add missing pairs and currencies
+    activeCurrencyPairs.forEach(
+        cp -> {
+          if (!pairsMap.containsKey(cp)) {
+            pairsMap.put(
+                cp,
+                new CurrencyPairMetaData(
+                    null, BigDecimal.ONE, null, getPriceScale(tickers, cp), null));
+          }
+          if (!currenciesMap.containsKey(cp.base)) {
+            currenciesMap.put(cp.base, null);
+          }
+          if (!currenciesMap.containsKey(cp.counter)) {
+            currenciesMap.put(cp.counter, null);
+          }
+        });
+  }
+
+  private void collectCurrenciesAndPairs(
+      BitmexTicker ticker, List<CurrencyPair> activeCurrencyPairs, Set<Currency> activeCurrencies) {
+
+    String bitmexSymbol = ticker.getSymbol();
+    String baseSymbol =
+        ("XBK".equals(ticker.getRootSymbol()) || "XBJ".equals(ticker.getRootSymbol()))
+            ? "XBT"
+            : ticker.getRootSymbol();
+    String counterSymbol;
+
+    if (bitmexSymbol.contains(baseSymbol)) {
+      counterSymbol = bitmexSymbol.substring(baseSymbol.length());
+    } else {
+      logger.warn("Not clear how to create currency pair for symbol: {}", bitmexSymbol);
+      return;
+    }
+
+    activeCurrencyPairs.add(new CurrencyPair(baseSymbol, counterSymbol));
+    activeCurrencies.add(new Currency(baseSymbol));
+    activeCurrencies.add(new Currency(counterSymbol));
+  }
+
+  private Integer getPriceScale(List<BitmexTicker> tickers, CurrencyPair cp) {
+
+    return tickers.stream()
+        .filter(ticker -> ticker.getSymbol().equals(BitmexAdapters.adaptCurrencyPairToSymbol(cp)))
+        .findFirst()
+        .map(BitmexTicker::getLastPrice)
+        .filter(Objects::nonNull)
+        .map(BigDecimal::scale)
+        .orElse(null);
+  }
+
+  public CurrencyPair determineActiveContract(
+      String baseSymbol, String counterSymbol, BitmexPrompt contractTimeframe) {
+
+    if ("BTC".equals(baseSymbol)) {
+      baseSymbol = "XBT";
+    }
+    if ("BTC".equals(counterSymbol)) {
+      counterSymbol = "XBT";
+    }
+
+    final String symbols = baseSymbol + "/" + counterSymbol;
+
+    BitmexTickerList tickerList =
+        ((BitmexMarketDataServiceRaw) marketDataService)
+            .getTicker(baseSymbol + ":" + contractTimeframe);
+
+    String bitmexSymbol =
+        tickerList.stream()
+            .map(BitmexTicker::getSymbol)
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new ExchangeException(
+                        String.format(
+                            "Instrument for %s %s is not active or does not exist",
+                            symbols, contractTimeframe)));
+
+    String contractTypeSymbol = bitmexSymbol.substring(3);
+    return new CurrencyPair(baseSymbol, contractTypeSymbol);
   }
 }

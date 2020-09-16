@@ -72,7 +72,7 @@ public class BitflyerAdapters {
               balance.getAvailable()));
     }
 
-    return new Wallet(adaptedBalances);
+    return Wallet.Builder.from(adaptedBalances).build();
   }
 
   /**
@@ -149,8 +149,7 @@ public class BitflyerAdapters {
   public static OpenOrders adaptOpenOrdersFromChildOrderResults(
       List<BitflyerQueryChildOrderResult> queryResults) {
     return new OpenOrders(
-        queryResults
-            .stream()
+        queryResults.stream()
             .map(
                 result ->
                     new LimitOrder.Builder(
@@ -158,7 +157,7 @@ public class BitflyerAdapters {
                             new CurrencyPair(result.getProductCode().replace("_", "/")))
                         .id(result.getChildOrderId())
                         .orderStatus(adaptOrderStatus(result.getChildOrderState()))
-                        .timestamp(BitflyerUtils.parseShortDate(result.getChildOrderDate()))
+                        .timestamp(BitflyerUtils.parseDate(result.getChildOrderDate()))
                         .limitPrice(result.getPrice())
                         .averagePrice(result.getAveragePrice())
                         .originalAmount(result.getSize())
